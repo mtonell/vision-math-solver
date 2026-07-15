@@ -5,3 +5,6 @@ torch
 torchvision
 pillow
 sympy
+fastapi
+uvicorn
+websockets

@@ -298,19 +298,16 @@ class HandTracker:
         predictions.sort(key=lambda item: item[0])
         equation_str = "".join([p[1] for p in predictions])
         
+        res_str = ""
         if len(equation_str) > 0 and self.recognizer:
             import sympy
             try:
-                if not equation_str[-1] in "+-*/":
+                if "?" not in equation_str and not equation_str[-1] in "+-*/":
                     result = sympy.sympify(equation_str)
                     if result.is_real and result.is_finite:
                         val = float(result.evalf())
                         if val.is_integer(): res_str = f"= {int(val)}"
                         else: res_str = f"= {val:.2f}"
-                        
-                        last_x = min(img.shape[1] - 100, predictions[-1][0] + 100)
-                        last_y = min(img.shape[0] - 50, predictions[-1][3] + 50)
-                        cv2.putText(img, res_str, (last_x, last_y), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 255, 255), 4)
             except Exception:
                 pass 
 
@@ -356,4 +353,4 @@ class HandTracker:
                 img[y1:y2, x1:x2] = cv2.add(img_bg, drag_fg)
                 cv2.rectangle(img, (x1, y1), (x2, y2), (255, 0, 255), 2)
 
-        return img
+        return img, equation_str, res_str
