@@ -6,6 +6,7 @@ import numpy as np
 import os
 import urllib.request
 import time
+import sympy
 
 # Hand skeleton connections for drawing manually
 HAND_CONNECTIONS = [
@@ -47,6 +48,15 @@ class HandTracker:
         self.draw_thickness = 5
         
         self.writing_start_time = None
+
+        # Initialize Math Recognizer CNN if model exists
+        model_file = os.path.join(os.path.dirname(__file__), '..', 'training', 'models', 'cnn_model.pth')
+        if os.path.exists(model_file):
+            from core.recognizer import MathRecognizer
+            print("Loading custom CNN Math Recognizer...")
+            self.recognizer = MathRecognizer(model_file)
+        else:
+            self.recognizer = None
 
     def process_frame(self, img):
         # Flip the image horizontally for a selfie-view display
@@ -157,18 +167,22 @@ class HandTracker:
                             cv2.rectangle(img, (ex1, ey1), (ex2, ey2), (0, 0, 255), 2)
 
         # -------------------------------------------------------------------
-        # Step 2: Stroke Grouping (Connected Components) and Selective Eraser
+        # Step 2 & 5: Stroke Grouping, Eraser, and Math CNN Inference
         # -------------------------------------------------------------------
         img_gray = cv2.cvtColor(self.canvas, cv2.COLOR_BGR2GRAY)
-        _, thresh = cv2.threshold(img_gray, 50, 255, cv2.THRESH_BINARY)
         
-        # Dilate the strokes to group close components together
-        # A 40x40 kernel means strokes within ~40 pixels of each other form a single group
+        # 1. Thresh for grouping logic (dilating)
+        _, thresh = cv2.threshold(img_gray, 50, 255, cv2.THRESH_BINARY)
         kernel = np.ones((40, 40), np.uint8)
         dilated = cv2.dilate(thresh, kernel, iterations=1)
         
+        # 2. Strict white-on-black thresh for CNN crop
+        _, inference_thresh = cv2.threshold(img_gray, 50, 255, cv2.THRESH_BINARY)
+        
         # Find contours of the grouped strokes
         contours, _ = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        
+        predictions = []
         
         for cnt in contours:
             x, y, bw, bh = cv2.boundingRect(cnt)
@@ -189,6 +203,49 @@ class HandTracker:
                 else:
                     # Draw a bounding box around the group on the output image
                     cv2.rectangle(img, (x, y), (x+bw, y+bh), (0, 255, 0), 2)
+                    
+                    # CNN Inference logic
+                    if self.recognizer:
+                        pad = max(bw, bh) // 4
+                        cx1, cy1 = max(0, x - pad), max(0, y - pad)
+                        cx2, cy2 = min(img.shape[1], x + bw + pad), min(img.shape[0], y + bh + pad)
+                        
+                        crop = inference_thresh[cy1:cy2, cx1:cx2]
+                        if crop.size > 0:
+                            label = self.recognizer.predict(crop)
+                            predictions.append((x, label, cx1, cy1))
+                            
+                            # Draw prediction label above the bounding box
+                            cv2.putText(img, label.replace('*', 'x'), (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 0), 2)
+                            
+        # Sort predictions left-to-right based on x coordinate
+        predictions.sort(key=lambda item: item[0])
+        equation_str = "".join([p[1] for p in predictions])
+        
+        # -------------------------------------------------------------------
+        # Solve the math using SymPy
+        # -------------------------------------------------------------------
+        if len(equation_str) > 0 and self.recognizer:
+            try:
+                # Basic protection: avoid evaluating if string ends in an operator
+                if not equation_str[-1] in "+-*/":
+                    result = sympy.sympify(equation_str)
+                    
+                    # Ensure it is a calculable real number (filters out symbols, infinity, complex)
+                    if result.is_real and result.is_finite:
+                        val = float(result.evalf())
+                        
+                        if val.is_integer():
+                            res_str = f"= {int(val)}"
+                        else:
+                            res_str = f"= {val:.2f}"
+                            
+                        # Draw the result to the right of the last character box
+                        last_x = min(img.shape[1] - 100, predictions[-1][0] + 100)
+                        last_y = min(img.shape[0] - 50, predictions[-1][3] + 50)
+                        cv2.putText(img, res_str, (last_x, last_y), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 255, 255), 4)
+            except Exception:
+                pass # Ignored: Likely invalid syntax like '5++5'
 
         # -------------------------------------------------------------------
         # Merge the drawing canvas with the webcam feed

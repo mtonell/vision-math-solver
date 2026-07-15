@@ -1,6 +1,9 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import cv2
+from torchvision import transforms
+from PIL import Image
 
 class MathCNN(nn.Module):
     """
@@ -40,3 +43,42 @@ class MathCNN(nn.Module):
         x = self.dropout(x)
         x = self.fc2(x)
         return x
+
+class MathRecognizer:
+    def __init__(self, model_path):
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.model = MathCNN(num_classes=14).to(self.device)
+        self.model.load_state_dict(torch.load(model_path, map_location=self.device, weights_only=True))
+        self.model.eval()
+        
+        self.transform = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.1307,), (0.3081,))
+        ])
+        
+        # Map class indices to characters
+        self.class_map = {
+            0: '0', 1: '1', 2: '2', 3: '3', 4: '4', 
+            5: '5', 6: '6', 7: '7', 8: '8', 9: '9',
+            10: '+', 11: '-', 12: '*', 13: '/' # Mapped class 12 to '*' for Sympy evaluation
+        }
+        
+    def predict(self, crop):
+        """
+        Takes a grayscale numpy image (2D array) of the extracted bounding box,
+        resizes it, and returns the predicted character label.
+        """
+        # Resize to 28x28 as expected by the CNN
+        resized = cv2.resize(crop, (28, 28), interpolation=cv2.INTER_AREA)
+        
+        # Convert to PIL Image for the transform
+        pil_img = Image.fromarray(resized)
+        
+        # Apply transform and move to device
+        tensor = self.transform(pil_img).unsqueeze(0).to(self.device)
+        
+        with torch.no_grad():
+            output = self.model(tensor)
+            _, predicted = torch.max(output.data, 1)
+            
+        return self.class_map[predicted.item()]
