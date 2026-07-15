@@ -6,12 +6,14 @@ function App() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [isAppStarted, setIsAppStarted] = useState(false);
   const [formula, setFormula] = useState("");
+  const [history, setHistory] = useState([]);
   
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const processedImgRef = useRef(null);
   const wsRef = useRef(null);
   const isStreamingRef = useRef(false);
+  const lastSavedRef = useRef("");
 
   useEffect(() => {
     connectWebSocket();
@@ -44,6 +46,11 @@ function App() {
             displayFormula += ` ${payload.result}`;
           }
           setFormula(displayFormula);
+          
+          if (payload.save && displayFormula && displayFormula !== lastSavedRef.current) {
+            lastSavedRef.current = displayFormula;
+            setHistory(prev => [...prev, displayFormula]);
+          }
         }
       } catch(e) {
         if (processedImgRef.current && event.data !== "error") {
@@ -102,6 +109,15 @@ function App() {
     if (videoRef.current && videoRef.current.srcObject) {
       const tracks = videoRef.current.srcObject.getTracks();
       tracks.forEach(track => track.stop());
+    }
+  };
+
+  const clearBoard = () => {
+    setHistory([]);
+    lastSavedRef.current = "";
+    
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ action: "clear" }));
     }
   };
 
@@ -168,6 +184,27 @@ function App() {
             ← Back
           </button>
           
+          <div className="help-btn-container">
+            <button className="btn help-btn">?</button>
+            <div className="help-tooltip">
+               <div className="help-section">
+                 <div className="help-title r-hand">Right ✋</div>
+                 <div className="emoji-row"><span>Draw</span> <span>👆</span></div>
+                 <div className="emoji-row"><span>Save</span> <span>👍</span></div>
+                 <div className="emoji-row"><span>Drag</span> <span>🤏</span></div>
+               </div>
+               <div className="help-section">
+                 <div className="help-title l-hand">Left 🤚</div>
+                 <div className="emoji-row"><span>Erase</span> <span>👆 / ✊</span></div>
+                 <div className="emoji-row"><span>Clear</span> <span>👋</span></div>
+               </div>
+               <div className="help-section">
+                 <div className="help-title n-hand">Neutral ⏸️</div>
+                 <div className="emoji-row"><span>Open Hand</span> <span>🖐️</span></div>
+               </div>
+            </div>
+          </div>
+          
           <div className="video-wrapper">
             <div className="status-badge">
               <span className={`status-dot ${isConnected ? 'connected' : 'disconnected'}`}></span>
@@ -195,6 +232,21 @@ function App() {
                 Waking up AI model...
               </div>
             )}
+          </div>
+
+          {/* Right Sidebar: History */}
+          <div className="demo-sidebar">
+             <button className="empty-btn" onClick={clearBoard}>
+               🗑️ Empty
+             </button>
+             <h3>History</h3>
+             <div className="history-list">
+               {history.length === 0 ? (
+                 <p className="empty-history">Give a 👍 to save an equation!</p>
+               ) : (
+                 history.map((eq, i) => <div key={i} className="history-item">{eq}</div>)
+               )}
+             </div>
           </div>
         </div>
       )}

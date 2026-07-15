@@ -38,6 +38,18 @@ async def video_stream(websocket: WebSocket):
                 # Receive base64 jpeg from React frontend
                 data = await websocket.receive_text()
                 
+                # Check for UI Commands (like Clear Board)
+                if data.startswith("{"):
+                    import json
+                    cmd = json.loads(data)
+                    if cmd.get("action") == "clear":
+                        if hasattr(tracker, 'canvas') and tracker.canvas is not None:
+                            tracker.canvas.fill(0)
+                        if hasattr(tracker, 'pts'):
+                            tracker.pts.clear()
+                        tracker.prediction_cache.clear()
+                    continue
+                
                 if "," in data:
                     base64_data = data.split(",")[1]
                 else:
@@ -53,11 +65,15 @@ async def video_stream(websocket: WebSocket):
                     # Run the exact same AI logic from our prototype!
                     result = tracker.process_frame(img)
                     
-                    # Handle both old (img) and new (img, eq, res) return types gracefully
-                    if isinstance(result, tuple) and len(result) == 3:
-                        processed_img, eq_str, res_str = result
+                    # Handle both old and new return types gracefully
+                    if isinstance(result, tuple):
+                        if len(result) == 4:
+                            processed_img, eq_str, res_str, save_trig = result
+                        elif len(result) == 3:
+                            processed_img, eq_str, res_str = result
+                            save_trig = False
                     else:
-                        processed_img, eq_str, res_str = result, "", ""
+                        processed_img, eq_str, res_str, save_trig = result, "", "", False
                         
                     # Encode the processed frame back to base64
                     _, buffer = cv2.imencode('.jpg', processed_img, [cv2.IMWRITE_JPEG_QUALITY, 50])
@@ -67,7 +83,8 @@ async def video_stream(websocket: WebSocket):
                     payload = {
                         "image": b64_img,
                         "equation": eq_str.replace('*', 'x'),
-                        "result": res_str
+                        "result": res_str,
+                        "save": save_trig
                     }
                     
                     # Send it back to React

@@ -72,6 +72,11 @@ class HandTracker:
         self.drag_px, self.drag_py = 0, 0
         self.drag_offset_x, self.drag_offset_y = 0, 0
         
+        self.thumbs_up_start_time = None
+        self.thumbs_up_last_seen_time = 0
+        self.last_thumb_pos = None
+        self.last_saved_time = 0
+        
         # Performance Cache
         self.prediction_cache = {}
 
@@ -108,12 +113,15 @@ class HandTracker:
             self.canvas = np.zeros_like(img)
 
         img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        save_triggered = False
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=img_rgb)
         detection_result = self.detector.detect(mp_image)
         
         current_time = time.time()
         eraser_rects = []
         clear_all_triggered = False
+        is_thumbs_up_now = False
+        thumb_pos_for_draw = None
         
         if detection_result.hand_landmarks:
             for hand_idx, hand_landmarks in enumerate(detection_result.hand_landmarks):
@@ -134,10 +142,21 @@ class HandTracker:
                         cv2.circle(img, (lm[1], lm[2]), 4, (0, 0, 255), cv2.FILLED)
                 
                 if len(lm_list) != 0:
+                    tip_ids = [8, 12, 16, 20]
+                    fingers = []
+                    for id in tip_ids:
+                        if lm_list[id][2] < lm_list[id - 2][2]: fingers.append(1)
+                        else: fingers.append(0)
+
                     if handedness == "Left":  # Physical Right hand (Drawing / Dragging)
                         x8, y8 = lm_list[8][1], lm_list[8][2]
                         x4, y4 = lm_list[4][1], lm_list[4][2]
                         
+                        # Check Thumbs Up to Save: all 4 fingers closed, thumb tip higher than thumb IP joint
+                        if fingers == [0, 0, 0, 0] and lm_list[4][2] < lm_list[3][2]:
+                            is_thumbs_up_now = True
+                            thumb_pos_for_draw = (x4, y4)
+
                         pinch_dist = math.hypot(x8 - x4, y8 - y4)
                         
                         # Pinch to Drag
@@ -230,6 +249,34 @@ class HandTracker:
                             
         if clear_all_triggered:
             cv2.putText(img, "CLEARED!", (img.shape[1]//2 - 150, img.shape[0]//2), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 5)
+
+        if is_thumbs_up_now:
+            self.thumbs_up_last_seen_time = current_time
+            if self.thumbs_up_start_time is None:
+                self.thumbs_up_start_time = current_time
+            self.last_thumb_pos = thumb_pos_for_draw
+        else:
+            if current_time - getattr(self, 'thumbs_up_last_seen_time', 0) > 0.3:
+                self.thumbs_up_start_time = None
+                
+        if self.thumbs_up_start_time is not None:
+            time_since_last_save = current_time - getattr(self, 'last_saved_time', 0)
+            if time_since_last_save >= 5.0:
+                elapsed = current_time - self.thumbs_up_start_time
+                if elapsed >= 1.0:
+                    save_triggered = True
+                    self.last_saved_time = current_time
+                    self.thumbs_up_start_time = None
+                else:
+                    if self.last_thumb_pos is not None:
+                        cx, cy = self.last_thumb_pos[0], self.last_thumb_pos[1] - 50
+                        cv2.line(img, (cx - 50, cy), (cx + 50, cy), (50, 50, 50), 6)
+                        length = int(100 * (1.0 - elapsed))
+                        if length > 0:
+                            cv2.line(img, (cx - 50, cy), (cx - 50 + length, cy), (0, 255, 255), 6)
+
+        if current_time - getattr(self, 'last_saved_time', 0) < 1.0:
+            cv2.putText(img, "SAVED!", (img.shape[1]//2 - 100, img.shape[0]//2), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 255, 0), 5)
 
         # -------------------------------------------------------------------
         # Grouping, Erasing, CNN Inference
@@ -353,4 +400,4 @@ class HandTracker:
                 img[y1:y2, x1:x2] = cv2.add(img_bg, drag_fg)
                 cv2.rectangle(img, (x1, y1), (x2, y2), (255, 0, 255), 2)
 
-        return img, equation_str, res_str
+        return img, equation_str, res_str, save_triggered
