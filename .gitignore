@@ -22,3 +22,13 @@ Thumbs.db
 # IDEs
 .vscode/
 .idea/
+
+# AI Additions
+hand_landmarker.task
+training/dataset/
+training/models/
+
+# Frontend Additions
+frontend/node_modules/
+frontend/dist/
+frontend/.eslintcache

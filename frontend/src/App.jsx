@@ -4,6 +4,7 @@ import './App.css';
 function App() {
   const [isConnected, setIsConnected] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [isAppStarted, setIsAppStarted] = useState(false);
   const [formula, setFormula] = useState("");
   
   const videoRef = useRef(null);
@@ -12,7 +13,6 @@ function App() {
   const wsRef = useRef(null);
   const isStreamingRef = useRef(false);
 
-  // Initialize WebSocket connection to FastAPI
   useEffect(() => {
     connectWebSocket();
     return () => {
@@ -46,13 +46,11 @@ function App() {
           setFormula(displayFormula);
         }
       } catch(e) {
-        // Fallback if not JSON
         if (processedImgRef.current && event.data !== "error") {
           processedImgRef.current.src = `data:image/jpeg;base64,${event.data}`;
         }
       }
       
-      // Ping-pong streaming to prevent queueing lag!
       if (isStreamingRef.current) {
         requestAnimationFrame(captureAndSendFrame);
       }
@@ -61,8 +59,18 @@ function App() {
     wsRef.current.onclose = () => {
       setIsConnected(false);
       console.log('Disconnected from AI Backend');
-      setTimeout(connectWebSocket, 3000); // Try to reconnect
+      setTimeout(connectWebSocket, 3000);
     };
+  };
+
+  const handleStart = () => {
+    setIsAppStarted(true);
+    startStreaming();
+  };
+
+  const handleStop = () => {
+    setIsAppStarted(false);
+    stopStreaming();
   };
 
   const startStreaming = async () => {
@@ -73,18 +81,17 @@ function App() {
       
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.play();
+        videoRef.current.onloadedmetadata = () => {
+          videoRef.current.play();
+          setIsStreaming(true);
+          isStreamingRef.current = true;
+          requestAnimationFrame(captureAndSendFrame);
+        };
       }
-      
-      setIsStreaming(true);
-      isStreamingRef.current = true;
-      
-      // Kick off the very first frame. The rest will ping-pong automatically.
-      requestAnimationFrame(captureAndSendFrame);
-      
     } catch (err) {
       console.error("Error accessing webcam:", err);
       alert("Could not access webcam. Please ensure permissions are granted in your browser.");
+      setIsAppStarted(false);
     }
   };
 
@@ -101,7 +108,6 @@ function App() {
   const captureAndSendFrame = () => {
     if (!videoRef.current || !canvasRef.current || !wsRef.current) return;
     
-    // Only send frames if WebSocket is actually connected
     if (wsRef.current.readyState === WebSocket.OPEN) {
       const video = videoRef.current;
       const canvas = canvasRef.current;
@@ -112,73 +118,86 @@ function App() {
         canvas.height = video.videoHeight;
       }
       
-      // Draw hidden video to hidden canvas
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      
-      // Extract as JPEG (quality 0.5 to drastically reduce payload size)
       const dataUrl = canvas.toDataURL('image/jpeg', 0.5);
-      
-      // Send to FastAPI
       wsRef.current.send(dataUrl);
     }
   };
 
   return (
-    <div className="app-container">
-      <div className="header">
-        <h1 className="title">AI Vision Math Solver</h1>
-        <p className="subtitle">Draw math in the air. Let AI solve it.</p>
-      </div>
-
-      <div className="glass-panel">
-        <div className="video-container">
-          <div className="status-badge">
-            <span className={`status-dot ${isConnected ? 'connected' : 'disconnected'}`}></span>
-            {isConnected ? 'Backend Connected' : 'Connecting...'}
+    <div className={`app-container ${isAppStarted ? 'demo-mode' : ''}`}>
+      {!isAppStarted ? (
+        <>
+          <div className="header">
+            <h1 className="title">AI Vision Math Solver</h1>
+            <p className="subtitle">Draw math in the air. Let me solve it.</p>
+            
+            <button className="btn primary massive-btn" onClick={handleStart} style={{ marginTop: '2.5rem' }}>
+              {isConnected ? "Try it out" : "Connecting to AI..."}
+            </button>
           </div>
 
-          {/* Hidden elements for capturing frames */}
-          <video ref={videoRef} className="hidden-webcam" playsInline muted></video>
-          <canvas ref={canvasRef} className="hidden-webcam"></canvas>
-
-          {/* The AI processed image stream from the backend */}
-          <img 
-            ref={processedImgRef} 
-            className="video-feed" 
-            alt="AI Feed"
-            style={{ display: isStreaming ? 'block' : 'none' }}
-          />
-
-          {/* Formula Bar */}
-          {isStreaming && formula && (
-            <div className="formula-bar">
-              {formula}
+          <div className="home-page">
+            <div className="instructions">
+              <div className="instruction-card">
+                <h3>✍️ Draw</h3>
+                <p>Hold up your <strong>right index finger</strong> to draw numbers and math operators.</p>
+              </div>
+              <div className="instruction-card">
+                <h3>🤏 Drag & Drop</h3>
+                <p><strong>Pinch your right thumb and index finger</strong> together to grab a number and move it.</p>
+              </div>
+              <div className="instruction-card">
+                <h3>🧽 Erase & Clear</h3>
+                <div style={{ textAlign: 'left', marginTop: '0.8rem', fontSize: '0.95rem', lineHeight: '1.6', color: 'var(--text-secondary)' }}>
+                  <strong>• Index Finger:</strong> Precision brush<br/>
+                  <strong>• Closed Fist:</strong> Large eraser<br/>
+                  <strong>• Hand Swipe:</strong> Clear all
+                </div>
+              </div>
+              <div className="instruction-card">
+                <h3>✋ Neutral Position</h3>
+                <p>For both hands, an <strong>open hand</strong> is the neutral position. The AI won't draw or erase.</p>
+              </div>
             </div>
-          )}
-
-          {!isStreaming && (
-            <div style={{
-              width: '100%', height: '100%', display: 'flex', 
-              justifyContent: 'center', alignItems: 'center', color: '#8a93a6',
-              fontSize: '1.2rem'
-            }}>
-              Click Start to access webcam
+          </div>
+        </>
+      ) : (
+        <div className="demo-container fade-in">
+          <button className="btn back-btn" onClick={handleStop}>
+            ← Back
+          </button>
+          
+          <div className="video-wrapper">
+            <div className="status-badge">
+              <span className={`status-dot ${isConnected ? 'connected' : 'disconnected'}`}></span>
+              {isConnected ? 'Backend Connected' : 'Connecting...'}
             </div>
-          )}
-        </div>
 
-        <div className="controls">
-          {!isStreaming ? (
-            <button className="btn primary" onClick={startStreaming}>
-              Start Camera
-            </button>
-          ) : (
-            <button className="btn" onClick={stopStreaming}>
-              Stop Camera
-            </button>
-          )}
+            <video ref={videoRef} className="hidden-webcam" playsInline muted></video>
+            <canvas ref={canvasRef} className="hidden-webcam"></canvas>
+
+            <img 
+              ref={processedImgRef} 
+              className="video-feed-full" 
+              alt="AI Feed"
+              style={{ display: isStreaming ? 'block' : 'none' }}
+            />
+
+            {isStreaming && formula && (
+              <div className="formula-bar-full">
+                {formula}
+              </div>
+            )}
+
+            {!isStreaming && (
+              <div className="waking-up">
+                Waking up AI model...
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
