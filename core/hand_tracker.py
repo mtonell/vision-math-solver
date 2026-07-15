@@ -44,8 +44,10 @@ class HandTracker:
         # Drawing state
         self.canvas = None
         self.xp, self.yp = 0, 0
+        self.exp, self.eyp = 0, 0 # Eraser points
         self.draw_color = (0, 255, 0)  # Green color in BGR
         self.draw_thickness = 5
+        self.eraser_thickness = 30 # Thicker brush for erasing
         
         self.writing_start_time = None
 
@@ -148,22 +150,35 @@ class HandTracker:
                             self.xp, self.yp = 0, 0
                             
                     elif handedness == "Right":  # This means physical Left hand (Eraser)
-                        # Check if it is a closed fist
-                        fingers_up = 0
+                        x1, y1 = lm_list[8][1], lm_list[8][2]
+                        
                         tip_ids = [8, 12, 16, 20]
+                        fingers_up_list = []
                         for id in tip_ids:
-                            if lm_list[id][2] < lm_list[id - 2][2]: fingers_up += 1
+                            if lm_list[id][2] < lm_list[id - 2][2]:
+                                fingers_up_list.append(1)
+                            else:
+                                fingers_up_list.append(0)
                                 
-                        # If all 4 fingers are folded into the palm
-                        if fingers_up == 0:
+                        # Eraser Brush: Index finger is up, middle is down
+                        if fingers_up_list[0] == 1 and fingers_up_list[1] == 0:
+                            cv2.circle(img, (x1, y1), 15, (0, 0, 255), cv2.FILLED)
+                            
+                            if self.exp == 0 and self.eyp == 0:
+                                self.exp, self.eyp = x1, y1
+                                
+                            cv2.line(self.canvas, (self.exp, self.eyp), (x1, y1), (0, 0, 0), self.eraser_thickness)
+                            self.exp, self.eyp = x1, y1
+                        else:
+                            self.exp, self.eyp = 0, 0
+                            
+                        # Closed Fist Eraser (Erases whole groups)
+                        if sum(fingers_up_list) == 0:
                             x_coords = [lm[1] for lm in lm_list]
                             y_coords = [lm[2] for lm in lm_list]
-                            # Define bounding box for the fist (with 20px padding)
                             ex1, ey1 = max(0, min(x_coords) - 20), max(0, min(y_coords) - 20)
                             ex2, ey2 = min(w, max(x_coords) + 20), min(h, max(y_coords) + 20)
                             eraser_rects.append((ex1, ey1, ex2, ey2))
-                            
-                            # Draw a red rectangle showing the eraser zone
                             cv2.rectangle(img, (ex1, ey1), (ex2, ey2), (0, 0, 255), 2)
 
         # -------------------------------------------------------------------
