@@ -71,6 +71,9 @@ class HandTracker:
         self.dragged_box = None
         self.drag_px, self.drag_py = 0, 0
         self.drag_offset_x, self.drag_offset_y = 0, 0
+        
+        # Performance Cache
+        self.prediction_cache = {}
 
         # Recognizer
         model_file = os.path.join(os.path.dirname(__file__), '..', 'training', 'models', 'cnn_model.pth')
@@ -233,13 +236,15 @@ class HandTracker:
         # -------------------------------------------------------------------
         img_gray = cv2.cvtColor(self.canvas, cv2.COLOR_BGR2GRAY)
         _, thresh = cv2.threshold(img_gray, 50, 255, cv2.THRESH_BINARY)
-        kernel = np.ones((40, 40), np.uint8)
+        # Halved kernel size for tighter grouping threshold
+        kernel = np.ones((20, 20), np.uint8)
         dilated = cv2.dilate(thresh, kernel, iterations=1)
         
         contours, _ = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         
         predictions = []
         current_bboxes = []
+        new_cache = {}
         
         for cnt in contours:
             x, y, bw, bh = cv2.boundingRect(cnt)
@@ -264,7 +269,13 @@ class HandTracker:
                         _, inference_thresh = cv2.threshold(img_gray, 50, 255, cv2.THRESH_BINARY)
                         crop = inference_thresh[cy1:cy2, cx1:cx2]
                         if crop.size > 0:
-                            label, confidence = self.recognizer.predict(crop)
+                            crop_bytes = crop.tobytes()
+                            if crop_bytes in self.prediction_cache:
+                                label, confidence = self.prediction_cache[crop_bytes]
+                            else:
+                                label, confidence = self.recognizer.predict(crop)
+                                
+                            new_cache[crop_bytes] = (label, confidence)
                             
                             if confidence < 0.60: display_label = "?"
                             else:
@@ -282,6 +293,7 @@ class HandTracker:
                         cv2.rectangle(img, (x, y), (x+bw, y+bh), (0, 255, 0), 2)
                         
         self.last_bboxes = current_bboxes
+        self.prediction_cache = new_cache
         
         predictions.sort(key=lambda item: item[0])
         equation_str = "".join([p[1] for p in predictions])
