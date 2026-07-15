@@ -9,6 +9,20 @@ import time
 import math
 import collections
 
+def chaikin_smooth(points, iterations=3):
+    if len(points) < 3:
+        return points
+    for _ in range(iterations):
+        new_points = [points[0]]
+        for i in range(len(points) - 1):
+            p0, p1 = points[i], points[i+1]
+            q = (0.75 * p0[0] + 0.25 * p1[0], 0.75 * p0[1] + 0.25 * p1[1])
+            r = (0.25 * p0[0] + 0.75 * p1[0], 0.25 * p0[1] + 0.75 * p1[1])
+            new_points.extend((q, r))
+        new_points.append(points[-1])
+        points = new_points
+    return [(int(p[0]), int(p[1])) for p in points]
+
 HAND_CONNECTIONS = [
     (0, 1), (1, 2), (2, 3), (3, 4),        # Thumb
     (0, 5), (5, 6), (6, 7), (7, 8),        # Index finger
@@ -41,7 +55,7 @@ class HandTracker:
         
         # Drawing state
         self.canvas = None
-        self.xp, self.yp = 0, 0
+        self.current_stroke = []
         self.exp, self.eyp = 0, 0 # Eraser points
         self.draw_color = (0, 255, 0)
         self.draw_thickness = 5
@@ -154,19 +168,22 @@ class HandTracker:
                             if fingers[0] == 1 and fingers[1] == 0:
                                 if self.writing_start_time is None:
                                     self.writing_start_time = current_time
-                                    self.xp, self.yp = 0, 0
                                     
                                 if current_time - self.writing_start_time > 0.5:
                                     cv2.circle(img, (x8, y8), 15, self.draw_color, cv2.FILLED)
-                                    if self.xp == 0 and self.yp == 0:
-                                        self.xp, self.yp = x8, y8
-                                    cv2.line(self.canvas, (self.xp, self.yp), (x8, y8), self.draw_color, self.draw_thickness)
-                                    self.xp, self.yp = x8, y8
+                                    self.current_stroke.append((x8, y8))
                                 else:
                                     cv2.circle(img, (x8, y8), 15, (0, 255, 255), 2)
                             else:
                                 self.writing_start_time = None
-                                self.xp, self.yp = 0, 0
+                                if len(self.current_stroke) > 0:
+                                    if len(self.current_stroke) == 1:
+                                        cv2.circle(self.canvas, self.current_stroke[0], self.draw_thickness // 2, self.draw_color, cv2.FILLED)
+                                    else:
+                                        smoothed = chaikin_smooth(self.current_stroke, iterations=3)
+                                        for i in range(len(smoothed) - 1):
+                                            cv2.line(self.canvas, smoothed[i], smoothed[i+1], self.draw_color, self.draw_thickness)
+                                    self.current_stroke = []
                                 
                     elif handedness == "Right":  # Physical Left hand (Eraser / Swipe)
                         x0, y0 = lm_list[0][1], lm_list[0][2]
@@ -291,6 +308,15 @@ class HandTracker:
         img_inv = cv2.cvtColor(img_inv, cv2.COLOR_GRAY2BGR)
         img = cv2.bitwise_and(img, img_inv)
         img = cv2.bitwise_or(img, self.canvas)
+
+        # Overlay the active smoothed stroke being drawn
+        if len(self.current_stroke) > 0:
+            if len(self.current_stroke) == 1:
+                cv2.circle(img, self.current_stroke[0], self.draw_thickness // 2, self.draw_color, cv2.FILLED)
+            else:
+                smoothed = chaikin_smooth(self.current_stroke, iterations=3)
+                for i in range(len(smoothed) - 1):
+                    cv2.line(img, smoothed[i], smoothed[i+1], self.draw_color, self.draw_thickness)
 
         # Draw the dragged box onto `img` temporarily so it floats
         if self.dragged_box is not None:
