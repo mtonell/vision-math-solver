@@ -79,6 +79,7 @@ class MathRecognizer:
         
         with torch.no_grad():
             output = self.model(tensor)
-            _, predicted = torch.max(output.data, 1)
+            probabilities = torch.nn.functional.softmax(output.data, dim=1)
+            confidence, predicted = torch.max(probabilities, 1)
             
-        return self.class_map[predicted.item()]
+        return self.class_map[predicted.item()], confidence.item()

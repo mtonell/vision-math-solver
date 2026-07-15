@@ -201,9 +201,6 @@ class HandTracker:
                     # Erase this specific group from the canvas using its bloated contour
                     cv2.drawContours(self.canvas, [cnt], -1, (0, 0, 0), cv2.FILLED)
                 else:
-                    # Draw a bounding box around the group on the output image
-                    cv2.rectangle(img, (x, y), (x+bw, y+bh), (0, 255, 0), 2)
-                    
                     # CNN Inference logic
                     if self.recognizer:
                         pad = max(bw, bh) // 4
@@ -212,11 +209,30 @@ class HandTracker:
                         
                         crop = inference_thresh[cy1:cy2, cx1:cx2]
                         if crop.size > 0:
-                            label = self.recognizer.predict(crop)
-                            predictions.append((x, label, cx1, cy1))
+                            label, confidence = self.recognizer.predict(crop)
                             
-                            # Draw prediction label above the bounding box
-                            cv2.putText(img, label.replace('*', 'x'), (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 0), 2)
+                            if confidence < 0.60:
+                                display_label = "?"
+                            else:
+                                display_label = label
+                                predictions.append((x, display_label, cx1, cy1))
+                                
+                            if display_label in ['+', '-', '*', '/']:
+                                box_color = (0, 165, 255) # Orange (BGR)
+                            elif display_label == "?":
+                                box_color = (0, 0, 255) # Red for unknown
+                            else:
+                                box_color = (255, 255, 0) # Cyan for numbers
+                                
+                            # Draw color-coded bounding box
+                            cv2.rectangle(img, (x, y), (x+bw, y+bh), box_color, 2)
+                            
+                            # Draw prediction and confidence
+                            cv2.putText(img, display_label.replace('*', 'x'), (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 1, box_color, 2)
+                            cv2.putText(img, f"{confidence*100:.0f}%", (x, y + bh + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, box_color, 1)
+                    else:
+                        # Fallback if model not loaded
+                        cv2.rectangle(img, (x, y), (x+bw, y+bh), (0, 255, 0), 2)
                             
         # Sort predictions left-to-right based on x coordinate
         predictions.sort(key=lambda item: item[0])
