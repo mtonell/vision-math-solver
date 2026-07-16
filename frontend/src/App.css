@@ -202,8 +202,8 @@ body {
 
 .help-btn-container {
   position: absolute;
-  top: 4.5rem;
-  left: 1.5rem;
+  top: 85px;
+  left: 20px;
   z-index: 50;
 }
 
@@ -224,7 +224,7 @@ body {
 
 .help-tooltip {
   position: absolute;
-  top: 4rem;
+  top: 60px;
   left: 0;
   background: rgba(11, 14, 20, 0.95);
   backdrop-filter: blur(12px);

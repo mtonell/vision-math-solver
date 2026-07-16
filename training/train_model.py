@@ -11,9 +11,7 @@ import torch.optim as optim
 from torchvision import datasets, transforms
 from torch.utils.data import Dataset, DataLoader, ConcatDataset
 
-# Add parent directory to path so we can import core.recognizer
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from core.recognizer import MathCNN
+from model_architecture import MathCNN
 
 # Setup device (Use GPU if available)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

@@ -1,8 +1,7 @@
 opencv-python
 mediapipe
 numpy
-torch
-torchvision
+onnxruntime
 pillow
 sympy
 fastapi

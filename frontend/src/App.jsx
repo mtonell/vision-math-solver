@@ -1,4 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
+import LandingPage from './components/LandingPage';
+import HistorySidebar from './components/HistorySidebar';
+import HelpTooltip from './components/HelpTooltip';
 import './App.css';
 
 function App() {
@@ -7,6 +10,8 @@ function App() {
   const [isAppStarted, setIsAppStarted] = useState(false);
   const [formula, setFormula] = useState("");
   const [history, setHistory] = useState([]);
+  const [isVisionSelected, setIsVisionSelected] = useState(false);
+  const [showSavedToast, setShowSavedToast] = useState(false);
   
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -50,6 +55,8 @@ function App() {
           if (payload.save && displayFormula && displayFormula !== lastSavedRef.current) {
             lastSavedRef.current = displayFormula;
             setHistory(prev => [...prev, displayFormula]);
+            setShowSavedToast(true);
+            setTimeout(() => setShowSavedToast(false), 2000);
           }
         }
       } catch(e) {
@@ -121,6 +128,13 @@ function App() {
     }
   };
 
+  const toggleDebug = () => {
+    setIsVisionSelected(prev => !prev);
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ action: "toggle_debug" }));
+    }
+  };
+
   const captureAndSendFrame = () => {
     if (!videoRef.current || !canvasRef.current || !wsRef.current) return;
     
@@ -143,67 +157,41 @@ function App() {
   return (
     <div className={`app-container ${isAppStarted ? 'demo-mode' : ''}`}>
       {!isAppStarted ? (
-        <>
-          <div className="header">
-            <h1 className="title">AI Vision Math Solver</h1>
-            <p className="subtitle">Draw math in the air. Let me solve it.</p>
-            
-            <button className="btn primary massive-btn" onClick={handleStart} style={{ marginTop: '2.5rem' }}>
-              {isConnected ? "Try it out" : "Connecting to AI..."}
-            </button>
-          </div>
-
-          <div className="home-page">
-            <div className="instructions">
-              <div className="instruction-card">
-                <h3>✍️ Draw</h3>
-                <p>Hold up your <strong>right index finger</strong> to draw numbers and math operators.</p>
-              </div>
-              <div className="instruction-card">
-                <h3>🤏 Drag & Drop</h3>
-                <p><strong>Pinch your right thumb and index finger</strong> together to grab a number and move it.</p>
-              </div>
-              <div className="instruction-card">
-                <h3>🧽 Erase & Clear</h3>
-                <div style={{ textAlign: 'left', marginTop: '0.8rem', fontSize: '0.95rem', lineHeight: '1.6', color: 'var(--text-secondary)' }}>
-                  <strong>• Index Finger:</strong> Precision brush<br/>
-                  <strong>• Closed Fist:</strong> Large eraser<br/>
-                  <strong>• Hand Swipe:</strong> Clear all
-                </div>
-              </div>
-              <div className="instruction-card">
-                <h3>✋ Neutral Position</h3>
-                <p>For both hands, an <strong>open hand</strong> is the neutral position. The AI won't draw or erase.</p>
-              </div>
-            </div>
-          </div>
-        </>
+        <LandingPage isConnected={isConnected} onStart={handleStart} />
       ) : (
         <div className="demo-container fade-in">
-          <button className="btn back-btn" onClick={handleStop}>
-            ← Back
-          </button>
-          
-          <div className="help-btn-container">
-            <button className="btn help-btn">?</button>
-            <div className="help-tooltip">
-               <div className="help-section">
-                 <div className="help-title r-hand">Right ✋</div>
-                 <div className="emoji-row"><span>Draw</span> <span>👆</span></div>
-                 <div className="emoji-row"><span>Save</span> <span>👍</span></div>
-                 <div className="emoji-row"><span>Drag</span> <span>🤏</span></div>
-               </div>
-               <div className="help-section">
-                 <div className="help-title l-hand">Left 🤚</div>
-                 <div className="emoji-row"><span>Erase</span> <span>👆 / ✊</span></div>
-                 <div className="emoji-row"><span>Clear</span> <span>👋</span></div>
-               </div>
-               <div className="help-section">
-                 <div className="help-title n-hand">Neutral ⏸️</div>
-                 <div className="emoji-row"><span>Open Hand</span> <span>🖐️</span></div>
-               </div>
-            </div>
+          <div className="top-controls-container" style={{ position: 'absolute', top: '20px', left: '20px', zIndex: 100, display: 'flex', gap: '10px' }}>
+            <button className="btn back-btn" onClick={handleStop} style={{ position: 'relative', top: '0', left: '0' }}>
+              ← Back
+            </button>
+            <button 
+              className="btn debug-btn" 
+              onClick={toggleDebug} 
+              style={{ 
+                padding: isVisionSelected ? '12px 24px' : '12px 16px', 
+                fontSize: '1.2rem', 
+                fontWeight: 'bold', 
+                background: isVisionSelected ? '#00a8ff' : 'var(--card-bg)', 
+                border: '2px solid rgba(255, 255, 255, 0.1)', 
+                color: 'white', 
+                borderRadius: '12px', 
+                cursor: 'pointer', 
+                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', 
+                boxShadow: isVisionSelected ? '0 0 20px rgba(0, 168, 255, 0.6)' : '0 4px 15px rgba(0, 0, 0, 0.3)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                overflow: 'hidden',
+                whiteSpace: 'nowrap'
+              }} 
+              title="Toggle AI Vision Mode"
+            >
+              <span>👁️</span>
+              {isVisionSelected && <span>AI Vision</span>}
+            </button>
           </div>
+          
+          <HelpTooltip />
           
           <div className="video-wrapper">
             <div className="status-badge">
@@ -234,20 +222,26 @@ function App() {
             )}
           </div>
 
-          {/* Right Sidebar: History */}
-          <div className="demo-sidebar">
-             <button className="empty-btn" onClick={clearBoard}>
-               🗑️ Empty
-             </button>
-             <h3>History</h3>
-             <div className="history-list">
-               {history.length === 0 ? (
-                 <p className="empty-history">Give a 👍 to save an equation!</p>
-               ) : (
-                 history.map((eq, i) => <div key={i} className="history-item">{eq}</div>)
-               )}
-             </div>
-          </div>
+          <HistorySidebar history={history} onClearBoard={clearBoard} />
+          
+          {showSavedToast && (
+            <div style={{ 
+              position: 'absolute', 
+              bottom: '20px', 
+              right: '30px', 
+              background: '#00c853', 
+              color: 'white', 
+              padding: '12px 24px', 
+              borderRadius: '12px', 
+              fontWeight: 'bold', 
+              fontSize: '1.2rem', 
+              boxShadow: '0 4px 15px rgba(0, 0, 0, 0.3)', 
+              zIndex: 1000,
+              animation: 'fadeIn 0.3s ease-out'
+            }}>
+              ✓ Saved!
+            </div>
+          )}
         </div>
       )}
     </div>

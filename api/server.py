@@ -24,6 +24,13 @@ app.add_middleware(
 # Initialize the global tracker instance
 tracker = HandTracker()
 
+@app.on_event("startup")
+async def startup_event():
+    print("\n" + "="*60)
+    print("🚀 VISION MATH SOLVER IS SUCCESSFULLY RUNNING!")
+    print("🌐 Open your browser and navigate to: http://localhost:5173")
+    print("="*60 + "\n")
+
 @app.get("/")
 def read_root():
     return {"status": "Backend is running!"}
@@ -48,6 +55,8 @@ async def video_stream(websocket: WebSocket):
                         if hasattr(tracker, 'pts'):
                             tracker.pts.clear()
                         tracker.prediction_cache.clear()
+                    elif cmd.get("action") == "toggle_debug":
+                        tracker.debug = not tracker.debug
                     continue
                 
                 if "," in data:
