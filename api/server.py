@@ -103,11 +103,16 @@ async def video_stream(websocket: WebSocket):
                     # If decoding fails, send original back to prevent ping-pong freeze
                     await websocket.send_text(json.dumps({"image": base64_data, "equation": "", "result": ""}))
             
+            except WebSocketDisconnect:
+                print("React Client disconnected cleanly.")
+                break
             except Exception as e:
                 print(f"Frame Processing Error: {e}")
-                # Ensure the loop continues and ping-pong doesn't break
-                import json
-                await websocket.send_text(json.dumps({"error": str(e)}))
+                try:
+                    import json
+                    await websocket.send_text(json.dumps({"error": str(e)}))
+                except:
+                    pass
                 
     except WebSocketDisconnect:
         print("React Client disconnected.")

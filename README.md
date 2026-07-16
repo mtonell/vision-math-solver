@@ -1,5 +1,8 @@
 # Vision Math Solver 🚀
 
+> **[Insert Main Project Demo GIF/Video Here]**  
+> *(Tip: Record a 15-second clip of you drawing an equation, zooming in on the result, and grabbing a number to drag it. Replace this text with `![Demo](path_to_video.gif)`)*
+
 Vision Math Solver is an interactive, real-time Computer Vision application that allows you to draw mathematical equations in the air using your hand, parse them using a custom Convolutional Neural Network (CNN), and solve them instantly on your screen.
 
 ## ✨ Features
@@ -9,6 +12,17 @@ Vision Math Solver is an interactive, real-time Computer Vision application that
 * **Full-Stack Architecture:** 
   * 🎨 **Frontend:** React (Vite) interface running on a highly optimized Nginx web server.
   * ⚙️ **Backend:** FastAPI handling real-time WebSockets, OpenCV image processing, and SymPy math evaluation.
+
+---
+
+## 👁️ AI Vision Mode
+
+Want to see exactly how the AI interprets your hand-drawn math? 
+
+Toggle the **👁️ AI Vision** button in the web UI to instantly reveal the underlying Neural Network bounding boxes, confidence score percentages, and the 3D MediaPipe hand tracking skeleton layered directly over the camera feed.
+
+> **[Insert AI Vision Demo GIF/Video Here]**  
+> *(Tip: Record a 10-second clip of you clicking the AI Vision button and drawing a number so the green bounding boxes appear. Replace this text with `![AI Vision](path_to_video.gif)`)*
 
 ---
 
@@ -25,7 +39,7 @@ Vision Math Solver is an interactive, real-time Computer Vision application that
 
 ## 🛠️ Tech Stack
 * **Computer Vision:** OpenCV, MediaPipe (Hand Tracking)
-* **AI / Deep Learning:** PyTorch, Torchvision (Custom CNN Model)
+* **AI / Deep Learning:** ONNX Runtime, PyTorch (Custom CNN Model)
 * **Backend:** Python, FastAPI, Uvicorn, WebSockets, SymPy
 * **Frontend:** React, JavaScript, Vite, CSS
 * **Deployment:** Docker, Docker Compose, Nginx (Multi-Stage Builds)
@@ -33,7 +47,7 @@ Vision Math Solver is an interactive, real-time Computer Vision application that
 ---
 
 ## 🚀 Quick Start (Docker)
-The easiest way to run the application is using the provided Docker containers. The backend has been optimized for CPU-only PyTorch inference, and the frontend uses an ultra-lightweight multi-stage Nginx build.
+The easiest way to run the application is using the provided Docker containers. The backend has been optimized for CPU-only ONNX inference, and the frontend uses an ultra-lightweight multi-stage Nginx build.
 
 1. Ensure you have Docker Desktop installed.
 2. Clone this repository.
@@ -78,3 +92,12 @@ python training/train_model.py
 # 3. Export the newly trained PyTorch model back to ONNX for production
 python convert_to_onnx.py
 ```
+
+---
+
+## 🔮 Future Works
+While the current version of Vision Math Solver is highly capable, there are several exciting avenues planned for future development:
+* **Advanced Neural Architecture:** Upgrade the custom CNN to a deeper, more robust architecture for improved handwriting generalization.
+* **Expanded Symbol Library:** Add support for complex mathematical symbols such as parentheses `()`, equals `=`, exponents `^`, and square roots `√`.
+* **Complex Equations:** Enhance the 2D spatial parser to understand multi-line equations, fractions, and variables.
+* **Vision Transformers (ViT):** Transition from a character-by-character bounding box approach to an end-to-end Vision Transformer (ViT) capable of reading entire mathematical formulas directly into LaTeX.

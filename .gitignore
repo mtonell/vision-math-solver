@@ -12,16 +12,21 @@ env/
 # Datasets and Models
 *.pth
 *.pt
-datasets/
-models/
+/datasets/
+/models/
 
 # Since hand_tracker.py automatically downloads this, we don't need to bloat the git repo!
 hand_landmarker.task
 
 # AI Additions
 training/dataset/
-# Ignore heavy PyTorch weights, but KEEP the lightweight ONNX model
-training/models/*.pth
+training/models/
+
+# Ignore everything inside the new model folder...
+model/*
+# ...Except the ONNX models!
+!model/cnn_model.onnx
+!model/cnn_model.onnx.data
 
 # OS generated files
 .DS_Store

@@ -18,7 +18,18 @@ class MathRecognizer:
         Takes a grayscale numpy image (2D array) of the extracted bounding box,
         resizes it, and returns the predicted character label using ONNX.
         """
-        # Resize to 28x28 as expected by the CNN
+        # Preserve aspect ratio by padding to a square FIRST
+        h, w = crop.shape
+        if h > w:
+            pad_left = (h - w) // 2
+            pad_right = h - w - pad_left
+            crop = cv2.copyMakeBorder(crop, 0, 0, pad_left, pad_right, cv2.BORDER_CONSTANT, value=0)
+        elif w > h:
+            pad_top = (w - h) // 2
+            pad_bottom = w - h - pad_top
+            crop = cv2.copyMakeBorder(crop, pad_top, pad_bottom, 0, 0, cv2.BORDER_CONSTANT, value=0)
+            
+        # Now safely resize to 28x28 without stretching
         resized = cv2.resize(crop, (28, 28), interpolation=cv2.INTER_AREA)
         
         # Manual PyTorch transforms: ToTensor() and Normalize((0.1307,), (0.3081,))
